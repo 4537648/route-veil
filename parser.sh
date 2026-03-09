@@ -20,11 +20,12 @@ cut_special() {
 }
 
 logger_msg() {
-  logger -s -t parser "$1"
+  logger -t "route-veil/parser" "$1"
 }
 
 logger_failure() {
-  logger_msg "Error: ${1}"
+  printf "[!] %s\n" "$1" >&2
+  logger -t "route-veil/parser" "Error: ${1}"
   exit 1
 }
 
@@ -83,8 +84,6 @@ while read -r line || [ -n "$line" ]; do
     dig_host=$(dig +short "$line" @localhost 2>&1 | grep -vE '[a-z]+' | cut_special)
     if [ -n "$dig_host" ]; then
       for i in $dig_host; do check_ip "$i" && add_ip "$i"; done
-    else
-      logger_msg "Failed to resolve domain name: line \"${line}\" skipped."
     fi
   fi
 done < "$FILE"

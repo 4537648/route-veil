@@ -8,8 +8,17 @@ error_msg() {
   printf "[!] %s\n" "$1" >&2
 }
 
+log_info() {
+  logger -t "route-veil/builder" "$1"
+}
+
+log_error() {
+  logger -t "route-veil/builder" "Error: $1"
+}
+
 failure() {
   error_msg "$1"
+  log_error "$1"
   exit 1
 }
 
@@ -191,6 +200,7 @@ touch \
 failure "Failed to prepare temporary files."
 
 msg "Reading source files from \"${SOURCE_DIR}\"..."
+log_info "Route list rebuild started."
 
 if [ -f "$INPUT_IP_FILE" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
@@ -498,5 +508,6 @@ msg "Prefixes: ${prefixes_total}, unique: ${prefixes_unique}"
 msg "Routes before final aggregation: ${raw_routes_total}, unique: ${raw_routes_unique}"
 msg "Final routes: ${final_routes_total}"
 msg "Result written to \"${FILE}\"."
+log_info "Route list rebuilt successfully: ${final_routes_total} route(s) written to \"${FILE}\"."
 
 exit 0

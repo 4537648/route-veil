@@ -12,8 +12,17 @@ error_msg() {
   printf "[!] %s\n" "$1"
 }
 
+log_info() {
+  logger -t "route-veil/install" "$1"
+}
+
+log_error() {
+  logger -t "route-veil/install" "Error: $1"
+}
+
 failure() {
   error_msg "$1"
+  log_error "$1"
   exit 1
 }
 
@@ -54,6 +63,7 @@ fi
 }
 
 msg "Installing route-veil..."
+log_info "Installation started."
 
 INSTALL_DIR="/opt/etc/route-veil"
 SOURCES_DIR="${INSTALL_DIR}/sources"
@@ -110,6 +120,7 @@ for _file in ip.txt domain.txt domain-asn.txt asn.txt; do
 done
 
 crt_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
+log_info "Tunnel state hook installed."
 
 if cat > "$CRON_FILE" <<EOF
 SHELL=/bin/sh
@@ -119,6 +130,7 @@ PATH=/opt/bin:/opt/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 EOF
 then
   msg "Cron file \"${CRON_FILE}\" created."
+  log_info "Nightly cron job installed."
 else
   failure "Failed to create cron file \"${CRON_FILE}\"."
 fi
@@ -136,5 +148,6 @@ fi
 
 printf "%s\n" "---" "Installation completed."
 msg "Set the tunnel interface name in config, then either populate route-list.txt or build it from sources/."
+log_info "Installation completed."
 
 exit 0
