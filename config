@@ -1,9 +1,11 @@
-# Название интерфейса VPN-туннеля из ifconfig или ip address show
-IFACE="iface"
+# VPN tunnel interface name from ifconfig or ip address show
+IFACE="interface0"
 
-# Расположение файла с адресами и доменами
-FILE="/opt/etc/route-veil/route-veil-list.txt"
+# Path to the route list file
+FILE="/opt/etc/route-veil/route-list.txt"
 
-ASN_SERVICE_URL="https://asn.service-url.org"
-LIST_ASN="/opt/etc/route-veil/list-asn.txt"
-LIST_STATIC="/opt/etc/route-veil/list-static.txt"
+# Directory with source lists for builder.sh
+SOURCE_DIR="/opt/etc/route-veil/sources"
+
+# Minimum number of RIPEstat peers that must see the ASN prefix
+MIN_PEERS_SEEING="10"

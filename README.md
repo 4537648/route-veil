@@ -1,100 +1,194 @@
-This project routes traffic for selected resources through a VPN tunnel on Netcraze routers using the [Entware](https://entware.net/) repository.
+This project routes selected traffic through a VPN tunnel on [Netcraze](https://netcraze.ru/) routers using [Entware](https://entware.net/).
+
+It is based on [rustrict/keenetic-traffic-via-vpn](https://github.com/rustrict/keenetic-traffic-via-vpn).
 
 ## Installation
-The installation script requires [curl](https://curl.se/). If it is missing, install it with:
+The installer requires [curl](https://curl.se/). If it is missing:
 
 ```shell
 opkg install curl
 ```
 
-To start the installation, run:
+Run the installer:
 
 ```shell
 curl -sfL https://raw.githubusercontent.com/4537648/route-veil/main/install.sh | sh
 ```
 
-The installer creates the `/opt/etc/route-veil` directory if it does not exist and places the required files there. It also creates two symlinks to monitor VPN tunnel state changes and refresh routes once a day. The `parser.sh` script requires `bind-dig`, `cron`, and `grep`; they will be installed if missing.
+The installer creates `/opt/etc/route-veil`, `/opt/etc/route-veil/sources`, downloads the working scripts, and creates these empty source files:
+- `/opt/etc/route-veil/sources/ip.txt`
+- `/opt/etc/route-veil/sources/domain.txt`
+- `/opt/etc/route-veil/sources/domain-asn.txt`
+- `/opt/etc/route-veil/sources/asn.txt`
 
-After installation, you need to:
-- Edit `/opt/etc/route-veil/config` and set `IFACE` to the VPN interface name shown by `ip address show` or `ifconfig`, for example `ovpn_br0` (=`OpenVPN0`) or `nwg0` (=`Wireguard0`);
-- Fill `/opt/etc/route-veil/route-veil-list.txt` with domains and/or IPv4 addresses of the resources whose traffic should go through the VPN. Prefixes are supported for IPv4 addresses;
-- Start the VPN connection, or restart it if it was already running before installation.
+These source files are not stored in the Git repository. They are created as empty files during installation and are intended to be filled locally on the router.
 
-### Example `config` values
-For an OpenVPN tunnel:
+It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a VPN state hook, and adds a nightly cron job that rebuilds `route-list.txt` and then reapplies routes.
 
-```shell
-# VPN tunnel interface name from ifconfig or ip address show
-IFACE="ovpn_br0"
+After installation:
+- Edit `/opt/etc/route-veil/config` and set `IFACE`.
+- Either edit `/opt/etc/route-veil/route-list.txt` manually, or fill the files in `/opt/etc/route-veil/sources/` and run `/opt/etc/route-veil/builder.sh`.
+- Start or restart the VPN connection.
 
-# Path to the file with addresses and domains
-FILE="/opt/etc/route-veil/route-veil-list.txt"
-```
+## Upgrades
 
-For a WireGuard tunnel:
+Automatic migration of local configuration and source files between incompatible project versions is not provided. When upgrading an existing installation, review your local files in `/opt/etc/route-veil/` and adapt or move them manually if file names, paths, or formats have changed.
+
+### Example config
 
 ```shell
 # VPN tunnel interface name from ifconfig or ip address show
 IFACE="nwg0"
 
-# Path to the file with addresses and domains
-FILE="/opt/etc/route-veil/route-veil-list.txt"
+# Path to the generated route list
+FILE="/opt/etc/route-veil/route-list.txt"
+
+# Directory with source lists for builder.sh
+SOURCE_DIR="/opt/etc/route-veil/sources"
+
+# Minimum number of RIPEstat peers that must see the ASN prefix
+MIN_PEERS_SEEING="10"
 ```
 
-### Example `route-veil-list.txt`
-```
-example.com
+## Source files
+
+`ip.txt`
+- Contains IPv4 and IPv4 CIDR entries.
+- These entries are copied into the final route set as-is.
+
+Example:
+```text
 1.1.1.1
 93.184.220.0/24
 ```
 
-## ASN-Based List Generation
-If you do not want to maintain `route-veil-list.txt` manually, you can generate it with `asn_parser.sh`.
+`domain.txt`
+- Contains domains.
+- Only the currently resolved IPv4 addresses of each domain are added to the final route set.
 
-The script uses three values from `config`:
-- `ASN_SERVICE_URL`: the HTTP endpoint used to fetch subnet lists for an ASN;
-- `LIST_ASN`: a file containing one ASN per line;
-- `LIST_STATIC`: a file containing static domains, IPv4 addresses, or IPv4 prefixes that should always be included.
-
-How it works:
-- `asn_parser.sh` reads every ASN from `LIST_ASN`;
-- for each ASN, it sends a request to `${ASN_SERVICE_URL}/?asn=<ASN>`;
-- all returned networks are collected into a temporary file;
-- the script concatenates `LIST_STATIC` and the fetched ASN networks into the final file defined by `FILE`;
-- `parser.sh` then uses that generated file to populate routing table `1000`.
-
-Example `config` entries for ASN mode:
-
-```shell
-FILE="/opt/etc/route-veil/route-veil-list.txt"
-ASN_SERVICE_URL="https://asn-api.example.net"
-LIST_ASN="/opt/etc/route-veil/list-asn.txt"
-LIST_STATIC="/opt/etc/route-veil/list-static.txt"
+Example:
+```text
+example.com
+api.example.com
 ```
 
-Example `list-asn.txt`:
+`domain-asn.txt`
+- Contains domains.
+- For each domain: `domain -> IPv4 -> ASN -> prefixes -> strict aggregation`.
 
+Example:
 ```text
+quora.com
+www.cloudflare.com
+```
+
+`asn.txt`
+- Contains ASN values as either `13335` or `AS13335`.
+- For each ASN: `ASN -> prefixes -> strict aggregation`.
+
+Example:
+```text
+13335
 AS15169
-AS13335
 ```
 
-Example `list-static.txt`:
+In all files:
+- empty lines are ignored;
+- lines starting with `#` are ignored.
 
-```text
-example.com
-1.1.1.1
-93.184.220.0/24
-```
+## Building route list
 
-To rebuild the final routing list manually, run:
+`/opt/etc/route-veil/builder.sh` works as follows:
+
+1. Reads the four input files from `SOURCE_DIR`.
+2. Deduplicates each list independently.
+3. `ip.txt`: adds IP/CIDR entries directly to the combined route list.
+4. `domain.txt`: resolves domains to IPv4 and adds them to the combined route list.
+5. `domain-asn.txt`: resolves domains to IPv4, deduplicates IPv4, resolves ASN via Team Cymru, fetches ASN prefixes from RIPEstat, and adds them to the combined route list.
+6. `asn.txt`: normalizes ASN values, fetches their prefixes from RIPEstat, and adds them to the combined route list.
+7. Performs a global deduplication of the combined route list.
+8. Runs final strict CIDR aggregation.
+9. Rebuilds `route-list.txt`.
+
+Run it with:
 
 ```shell
-/opt/etc/route-veil/asn_parser.sh
+/opt/etc/route-veil/builder.sh
 ```
+
+During execution it prints short progress stages:
+- reading source files;
+- processing `domain.txt`;
+- processing `domain-asn.txt`;
+- resolving ASN for unique IPv4 from `domain-asn.txt`;
+- fetching ASN IPv4 prefixes from RIPEstat;
+- aggregating ASN prefixes;
+- running final strict CIDR aggregation;
+- printing the final summary.
+
+## Output file format
+
+`route-list.txt` contains:
+- a header with the generation timestamp;
+- per-stage statistics as `#` comments;
+- source comments:
+  - `# domain ...`
+  - `# domain-asn ...`
+  - `# explicit ASN`
+- a final `# final routes` block with ready-to-use IPv4/CIDR entries.
+
+Example statistics:
+
+```text
+# generated by /opt/etc/route-veil/builder.sh on 2026-03-09T12:34:56Z
+# input ip total: 3
+# input ip unique: 2
+# input domain total: 4
+# input domain unique: 3
+# input domain-asn total: 2
+# input domain-asn unique: 2
+# input asn total: 2
+# input asn unique: 2
+# domain IPv4 total: 7
+# domain IPv4 unique: 5
+# domain-asn IPv4 total: 6
+# domain-asn IPv4 unique: 4
+# domain-asn ASN total: 5
+# domain-asn ASN unique: 3
+# combined ASN total: 5
+# combined ASN unique: 4
+# prefixes total: 420
+# prefixes unique: 390
+# routes raw total: 412
+# routes raw unique: 398
+# final routes total: 275
+```
+
+To apply an already built `route-list.txt` manually:
+
+```shell
+/opt/etc/route-veil/parser.sh
+```
+
+## Scheduled jobs
+
+The installer creates:
+- `/opt/etc/ndm/ifstatechanged.d/ip_rule_switch` -> `start-stop.sh`
+- `/opt/etc/cron.d/route-veil`
+
+The cron file runs this command every day at `03:15`:
+
+```cron
+15 3 * * * root /opt/etc/route-veil/builder.sh && /opt/etc/route-veil/parser.sh
+```
+
+This means:
+- `builder.sh` rebuilds `route-list.txt` from `sources/*`;
+- if the build succeeds, `parser.sh` immediately applies the updated list to table `1000`.
 
 ## Note
-By default, traffic is redirected only for devices in the "Home network" segment (`Bridge0`). Traffic generated directly on the router itself is not sent through the VPN tunnel. If you want all traffic, including the router's own traffic, to use the VPN, run these three commands:
+
+By default, traffic is redirected only for devices in the `Bridge0` segment. To apply the rule to the router itself as well:
 
 ```shell
 ip rule del priority 1995 2>/dev/null
@@ -102,13 +196,12 @@ ip rule add table 1000 priority 1995
 sed -i 's/iif br0 //' /opt/etc/route-veil/start-stop.sh
 ```
 
-After that, traffic from all devices, including the router itself, will be redirected.
-
 ## Removal
-To remove the project, run:
+
+Remove the project with:
 
 ```shell
 /opt/etc/route-veil/uninstall.sh
 ```
 
-This removes **all** files downloaded and created by the installer, as well as the `/opt/etc/route-veil` directory if it does not contain any unrelated files.
+This removes all downloaded and installer-created files, including `/opt/etc/route-veil/sources`, if it does not contain any unrelated files.

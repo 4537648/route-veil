@@ -73,7 +73,9 @@ logger_msg "Processing $(grep -c "" "$FILE") line(s) from file \"${FILE}\"..."
 
 while read -r line || [ -n "$line" ]; do
   [ -z "$line" ] && continue
-  [ "${line:0:1}" = "#" ] && continue
+  case "$line" in
+    \#*) continue ;;
+  esac
 
   if check_ip "$line"; then
     add_ip "$line"

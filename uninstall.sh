@@ -44,13 +44,26 @@ if ip rule del priority 1995 2>/dev/null; then
   msg "Routing rule removed."
 fi
 
-delete_file "/opt/etc/cron.daily/routing_table_update" "Symlink" "symlink"
+delete_file "/opt/etc/cron.d/route-veil" "Cron file" "cron file"
 delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Symlink" "symlink"
 
 for _file in \
-  config parser.sh start-stop.sh uninstall.sh asn_parser.sh route-veil-list.txt; do
+  config parser.sh start-stop.sh uninstall.sh builder.sh route-list.txt; do
   delete_file "${PRJ_DIR}/${_file}"
 done
+
+for _file in ip.txt domain.txt domain-asn.txt asn.txt; do
+  delete_file "${PRJ_DIR}/sources/${_file}"
+done
+
+if [ -d "${PRJ_DIR}/sources" ] && \
+  [ "$(echo "${PRJ_DIR}/sources/"*)" = "${PRJ_DIR}/sources/*" ]; then
+  if rm -r "${PRJ_DIR}/sources" 2>/dev/null; then
+    msg "Directory \"${PRJ_DIR}/sources\" removed."
+  else
+    error_msg "Failed to remove directory \"${PRJ_DIR}/sources\"."
+  fi
+fi
 
 # https://unix.stackexchange.com/a/615900
 if [ -d "${PRJ_DIR}" ] && \
@@ -61,6 +74,9 @@ if [ -d "${PRJ_DIR}" ] && \
     error_msg "Failed to remove directory \"${PRJ_DIR}\"."
   fi
 fi
+
+/opt/etc/init.d/S10cron restart >/dev/null 2>&1 && \
+msg "Cron restarted."
 
 printf "%s\n" "---" "Removal completed."
 
