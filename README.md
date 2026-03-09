@@ -1,69 +1,114 @@
-Данный проект позволяет перенаправлять трафик для отдельных ресурсов в VPN-туннель на роутерах [Keenetic](https://keenetic.ru/) с использованием репозитория [Entware](https://entware.net/).
+This project routes traffic for selected resources through a VPN tunnel on Netcraze routers using the [Entware](https://entware.net/) repository.
 
-## Установка
-Для загрузки и работы установочного скрипта требуется [curl](https://curl.se/). При отсутствии — установить командой:
+## Installation
+The installation script requires [curl](https://curl.se/). If it is missing, install it with:
 
 ```shell
 opkg install curl
 ```
 
-Для начала процесса установки выполните команду:
+To start the installation, run:
 
 ```shell
-curl -sfL https://raw.githubusercontent.com/rustrict/keenetic-traffic-via-vpn/main/install.sh | sh
+curl -sfL https://raw.githubusercontent.com/4537648/route-veil/main/install.sh | sh
 ```
 
-Установщик создаст каталог `/opt/etc/unblock` (если такой не существует) и поместит в него необходимые файлы. Также будут созданы два симлинка для отслеживания состояния VPN-туннеля и автоматического обновления маршрутов раз в сутки. Для работы скрипта `parser.sh` требуются `bind-dig`, `cron` и `grep` — они будут установлены при отсутствии.
+The installer creates the `/opt/etc/route-veil` directory if it does not exist and places the required files there. It also creates two symlinks to monitor VPN tunnel state changes and refresh routes once a day. The `parser.sh` script requires `bind-dig`, `cron`, and `grep`; they will be installed if missing.
 
-После окончания установки понадобится:
-- Отредактировать файл `/opt/etc/unblock/config`, указав в переменной `IFACE` название интерфейса VPN, которое можно увидеть в выводе команды `ip address show` или `ifconfig`. Например, `ovpn_br0` (=`OpenVPN0`) или `nwg0` (=`Wireguard0`);
-- Заполнить файл `/opt/etc/unblock/unblock-list.txt` доменами и (или) IPv4-адресами (как с префиксом, так и без) ресурсов, трафик до которых вы хотите пустить через VPN;
-- Запустить VPN-соединение (или перезапустить, если оно было запущено до установки).
+After installation, you need to:
+- Edit `/opt/etc/route-veil/config` and set `IFACE` to the VPN interface name shown by `ip address show` or `ifconfig`, for example `ovpn_br0` (=`OpenVPN0`) or `nwg0` (=`Wireguard0`);
+- Fill `/opt/etc/route-veil/route-veil-list.txt` with domains and/or IPv4 addresses of the resources whose traffic should go through the VPN. Prefixes are supported for IPv4 addresses;
+- Start the VPN connection, or restart it if it was already running before installation.
 
-### Примеры заполнения config
-Для OpenVPN-туннеля:
+### Example `config` values
+For an OpenVPN tunnel:
 
 ```shell
-# Название интерфейса VPN-туннеля из ifconfig или ip address show
+# VPN tunnel interface name from ifconfig or ip address show
 IFACE="ovpn_br0"
 
-# Расположение файла с адресами и доменами
-FILE="/opt/etc/unblock/unblock-list.txt"
+# Path to the file with addresses and domains
+FILE="/opt/etc/route-veil/route-veil-list.txt"
 ```
 
-Для WireGuard-туннеля:
+For a WireGuard tunnel:
 
 ```shell
-# Название интерфейса VPN-туннеля из ifconfig или ip address show
+# VPN tunnel interface name from ifconfig or ip address show
 IFACE="nwg0"
 
-# Расположение файла с адресами и доменами
-FILE="/opt/etc/unblock/unblock-list.txt"
+# Path to the file with addresses and domains
+FILE="/opt/etc/route-veil/route-veil-list.txt"
 ```
 
-### Пример заполнения unblock-list.txt
+### Example `route-veil-list.txt`
 ```
 example.com
 1.1.1.1
 93.184.220.0/24
 ```
 
-## Замечание
-Учтите, что по умолчанию трафик перенаправляется только для устройств из сегмента «Домашняя сеть» (Bridge0). При попытке доступа непосредственно с роутера, трафик не отправится в VPN-туннель. Если вас это не устраивает, последовательно выполните следующие три команды:
+## ASN-Based List Generation
+If you do not want to maintain `route-veil-list.txt` manually, you can generate it with `asn_parser.sh`.
+
+The script uses three values from `config`:
+- `ASN_SERVICE_URL`: the HTTP endpoint used to fetch subnet lists for an ASN;
+- `LIST_ASN`: a file containing one ASN per line;
+- `LIST_STATIC`: a file containing static domains, IPv4 addresses, or IPv4 prefixes that should always be included.
+
+How it works:
+- `asn_parser.sh` reads every ASN from `LIST_ASN`;
+- for each ASN, it sends a request to `${ASN_SERVICE_URL}/?asn=<ASN>`;
+- all returned networks are collected into a temporary file;
+- the script concatenates `LIST_STATIC` and the fetched ASN networks into the final file defined by `FILE`;
+- `parser.sh` then uses that generated file to populate routing table `1000`.
+
+Example `config` entries for ASN mode:
+
+```shell
+FILE="/opt/etc/route-veil/route-veil-list.txt"
+ASN_SERVICE_URL="https://asn-api.example.net"
+LIST_ASN="/opt/etc/route-veil/list-asn.txt"
+LIST_STATIC="/opt/etc/route-veil/list-static.txt"
+```
+
+Example `list-asn.txt`:
+
+```text
+AS15169
+AS13335
+```
+
+Example `list-static.txt`:
+
+```text
+example.com
+1.1.1.1
+93.184.220.0/24
+```
+
+To rebuild the final routing list manually, run:
+
+```shell
+/opt/etc/route-veil/asn_parser.sh
+```
+
+## Note
+By default, traffic is redirected only for devices in the "Home network" segment (`Bridge0`). Traffic generated directly on the router itself is not sent through the VPN tunnel. If you want all traffic, including the router's own traffic, to use the VPN, run these three commands:
 
 ```shell
 ip rule del priority 1995 2>/dev/null
 ip rule add table 1000 priority 1995
-sed -i 's/iif br0 //' /opt/etc/unblock/start-stop.sh
+sed -i 's/iif br0 //' /opt/etc/route-veil/start-stop.sh
 ```
 
-После этого под перенаправление попадут все устройства, включая сам роутер.
+After that, traffic from all devices, including the router itself, will be redirected.
 
-## Удаление
-Для удаления выполните команду:
+## Removal
+To remove the project, run:
 
 ```shell
-/opt/etc/unblock/uninstall.sh
+/opt/etc/route-veil/uninstall.sh
 ```
 
-Будут удалены **все** скаченные и созданные установщиком файлы, а также каталог `/opt/etc/unblock`, если в нём не окажется ничего постороннего.
+This removes **all** files downloaded and created by the installer, as well as the `/opt/etc/route-veil` directory if it does not contain any unrelated files.

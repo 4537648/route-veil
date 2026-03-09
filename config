@@ -1,5 +1,9 @@
 # Название интерфейса VPN-туннеля из ifconfig или ip address show
-IFACE="foobar"
+IFACE="iface"
 
 # Расположение файла с адресами и доменами
-FILE="/opt/etc/unblock/unblock-list.txt"
+FILE="/opt/etc/route-veil/route-veil-list.txt"
+
+ASN_SERVICE_URL="https://asn.service-url.org"
+LIST_ASN="/opt/etc/route-veil/list-asn.txt"
+LIST_STATIC="/opt/etc/route-veil/list-static.txt"
