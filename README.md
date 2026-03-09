@@ -1,6 +1,4 @@
-This project routes selected traffic through a VPN tunnel on [Netcraze](https://netcraze.ru/) routers using [Entware](https://entware.net/).
-
-It is based on [rustrict/keenetic-traffic-via-vpn](https://github.com/rustrict/keenetic-traffic-via-vpn).
+This project routes selected traffic through a tunnel on [Netcraze](https://netcraze.ru/) routers using [Entware](https://entware.net/).
 
 ## Installation
 The installer requires [curl](https://curl.se/). If it is missing:
@@ -23,12 +21,12 @@ The installer creates `/opt/etc/route-veil`, `/opt/etc/route-veil/sources`, down
 
 These source files are not stored in the Git repository. They are created as empty files during installation and are intended to be filled locally on the router.
 
-It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a VPN state hook, and adds a nightly cron job that rebuilds `route-list.txt` and then reapplies routes.
+It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a tunnel state hook, and adds a nightly cron job that rebuilds `route-list.txt` and then reapplies routes.
 
 After installation:
 - Edit `/opt/etc/route-veil/config` and set `IFACE`.
 - Either edit `/opt/etc/route-veil/route-list.txt` manually, or fill the files in `/opt/etc/route-veil/sources/` and run `/opt/etc/route-veil/builder.sh`.
-- Start or restart the VPN connection.
+- Start or restart the tunnel connection.
 
 ## Upgrades
 
@@ -37,7 +35,7 @@ Automatic migration of local configuration and source files between incompatible
 ### Example config
 
 ```shell
-# VPN tunnel interface name from ifconfig or ip address show
+# Tunnel interface name from ifconfig or ip address show
 IFACE="nwg0"
 
 # Path to the generated route list

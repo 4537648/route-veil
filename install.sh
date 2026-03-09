@@ -135,6 +135,6 @@ if [ ! -f "${INSTALL_DIR}/route-list.txt" ]; then
 fi
 
 printf "%s\n" "---" "Installation completed."
-msg "Set the VPN interface name in config, then either populate route-list.txt or build it from sources/."
+msg "Set the tunnel interface name in config, then either populate route-list.txt or build it from sources/."
 
 exit 0

@@ -1,4 +1,4 @@
-# VPN tunnel interface name from ifconfig or ip address show
+# Tunnel interface name from ifconfig or ip address show
 IFACE="interface0"
 
 # Path to the route list file
