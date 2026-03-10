@@ -21,7 +21,7 @@ The installer creates `/opt/etc/route-veil`, `/opt/etc/route-veil/sources`, down
 
 These source files are not stored in the Git repository. They are created as empty files during installation and are intended to be filled locally on the router.
 
-It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a tunnel state hook, and adds a nightly cron job that rebuilds `route-list.txt` and then reapplies routes.
+It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a tunnel state hook, and adds a daily refresh job.
 
 After installation:
 - Edit `/opt/etc/route-veil/config` and set `IFACE`.
@@ -168,21 +168,23 @@ To apply an already built `route-list.txt` manually:
 /opt/etc/route-veil/parser.sh
 ```
 
+To rebuild the route list and immediately apply it manually:
+
+```shell
+/opt/etc/route-veil/refresh.sh
+```
+
 ## Scheduled jobs
 
 The installer creates:
 - `/opt/etc/ndm/ifstatechanged.d/ip_rule_switch` -> `start-stop.sh`
-- `/opt/etc/cron.d/route-veil`
+- `/opt/etc/cron.daily/routing_table_update` -> `refresh.sh`
 
-The cron file runs this command every day at `03:15`:
-
-```cron
-15 3 * * * root /opt/etc/route-veil/builder.sh && /opt/etc/route-veil/parser.sh
-```
+The daily job runs `refresh.sh` through the router's existing `run-parts` schedule for `/opt/etc/cron.daily`.
 
 This means:
 - `builder.sh` rebuilds `route-list.txt` from `sources/*`;
-- if the build succeeds, `parser.sh` immediately applies the updated list to table `1000`.
+- `parser.sh` immediately applies the updated list to table `1000`.
 
 ## Note
 

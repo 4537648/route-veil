@@ -57,12 +57,12 @@ if ip rule del priority 1995 2>/dev/null; then
   log_info "Routing rule removed."
 fi
 
-delete_file "/opt/etc/cron.d/route-veil" "Cron file" "cron file"
+delete_file "/opt/etc/cron.daily/routing_table_update" "Symlink" "symlink"
 delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Symlink" "symlink"
 log_info "Scheduled job and tunnel state hook removed."
 
 for _file in \
-  config parser.sh start-stop.sh uninstall.sh builder.sh route-list.txt; do
+  config parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt; do
   delete_file "${PRJ_DIR}/${_file}"
 done
 

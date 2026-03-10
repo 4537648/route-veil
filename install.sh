@@ -67,7 +67,6 @@ log_info "Installation started."
 
 INSTALL_DIR="/opt/etc/route-veil"
 SOURCES_DIR="${INSTALL_DIR}/sources"
-CRON_FILE="/opt/etc/cron.d/route-veil"
 REPO_URL="https://raw.githubusercontent.com/4537648/route-veil/main"
 
 check_command opkg || failure "opkg is required to install packages."
@@ -96,7 +95,7 @@ fi
 
 [ ! -f "${INSTALL_DIR}/config" ] && download "${REPO_URL}/config" "${INSTALL_DIR}/config"
 
-for _file in parser.sh start-stop.sh uninstall.sh builder.sh; do
+for _file in parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh; do
   download "${REPO_URL}/${_file}" "${INSTALL_DIR}/${_file}"
   mk_file_exec "${INSTALL_DIR}/${_file}"
 done
@@ -122,18 +121,8 @@ done
 crt_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
 log_info "Tunnel state hook installed."
 
-if cat > "$CRON_FILE" <<EOF
-SHELL=/bin/sh
-PATH=/opt/bin:/opt/sbin:/usr/sbin:/usr/bin:/sbin:/bin
-
-15 3 * * * root ${INSTALL_DIR}/builder.sh && ${INSTALL_DIR}/parser.sh
-EOF
-then
-  msg "Cron file \"${CRON_FILE}\" created."
-  log_info "Nightly cron job installed."
-else
-  failure "Failed to create cron file \"${CRON_FILE}\"."
-fi
+crt_symlink "${INSTALL_DIR}/refresh.sh" "/opt/etc/cron.daily/routing_table_update"
+log_info "Daily route refresh job installed."
 
 /opt/etc/init.d/S10cron restart >/dev/null 2>&1 && \
 msg "Cron restarted."
