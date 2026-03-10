@@ -25,8 +25,8 @@ It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `py
 
 After installation:
 - Edit `/opt/etc/route-veil/config` and set `IFACE`.
-- Either edit `/opt/etc/route-veil/route-list.txt` manually, or fill the files in `/opt/etc/route-veil/sources/` and run `/opt/etc/route-veil/builder.sh`.
-- Start or restart the tunnel connection.
+- Fill the files in `/opt/etc/route-veil/sources/`.
+- Run `/opt/etc/route-veil/refresh.sh`.
 
 ## Upgrades
 
@@ -124,6 +124,8 @@ During execution it prints short progress stages:
 - running final strict CIDR aggregation;
 - printing the final summary.
 
+`builder.sh` only rebuilds `/opt/etc/route-veil/route-list.txt`. To rebuild the route list and immediately apply it, use `refresh.sh`.
+
 ## Output file format
 
 `route-list.txt` contains:
@@ -162,17 +164,13 @@ Example statistics:
 # final routes total: 275
 ```
 
-To apply an already built `route-list.txt` manually:
-
-```shell
-/opt/etc/route-veil/parser.sh
-```
-
 To rebuild the route list and immediately apply it manually:
 
 ```shell
 /opt/etc/route-veil/refresh.sh
 ```
+
+`refresh.sh` temporarily disables the policy rule for `br0`, rebuilds `route-list.txt`, repopulates table `1000`, and then enables the policy rule again. This makes it suitable both for daily scheduled refreshes and for the first manual activation on a router where the tunnel is already up.
 
 ## Scheduled jobs
 
@@ -184,7 +182,7 @@ The daily job runs `refresh.sh` through the router's existing `run-parts` schedu
 
 This means:
 - `builder.sh` rebuilds `route-list.txt` from `sources/*`;
-- `parser.sh` immediately applies the updated list to table `1000`.
+- `refresh.sh` temporarily disables the policy rule, runs `builder.sh` and `parser.sh`, and then enables the policy rule again.
 
 ## Note
 

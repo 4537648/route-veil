@@ -136,7 +136,7 @@ if [ ! -f "${INSTALL_DIR}/route-list.txt" ]; then
 fi
 
 printf "%s\n" "---" "Installation completed."
-msg "Set the tunnel interface name in config, then either populate route-list.txt or build it from sources/."
+msg "Set the tunnel interface name in config, populate sources/, then run refresh.sh."
 log_info "Installation completed."
 
 exit 0
