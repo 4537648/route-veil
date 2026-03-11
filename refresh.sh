@@ -38,6 +38,10 @@ active_table_read() {
   fi
 }
 
+active_table_exists() {
+  [ -f "$ACTIVE_TABLE_FILE" ]
+}
+
 active_table_write() {
   printf "%s\n" "$1" > "$ACTIVE_TABLE_FILE"
 }
@@ -103,8 +107,12 @@ log_info "Daily refresh started."
 msg "Refreshing route list and routing table..."
 
 ACTIVE_TABLE="$(active_table_read)"
-if [ "$ACTIVE_TABLE" = "$TABLE_PRIMARY" ]; then
-  STAGING_TABLE="$TABLE_SECONDARY"
+if active_table_exists; then
+  if [ "$ACTIVE_TABLE" = "$TABLE_PRIMARY" ]; then
+    STAGING_TABLE="$TABLE_SECONDARY"
+  else
+    STAGING_TABLE="$TABLE_PRIMARY"
+  fi
 else
   STAGING_TABLE="$TABLE_PRIMARY"
 fi
