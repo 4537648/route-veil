@@ -28,8 +28,8 @@ delete_file() {
   fi
 }
 
-PRJ_DIR="/opt/etc/route-veil"
-CONFIG="${PRJ_DIR}/config"
+INSTALL_DIR="/opt/etc/route-veil"
+CONFIG="${INSTALL_DIR}/config"
 
 TABLE_PRIMARY="1000"
 TABLE_SECONDARY="1001"
@@ -84,30 +84,30 @@ delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Symlink" "symlink"
 log_info "Scheduled job and tunnel state hook removed."
 
 for _file in \
-  config parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt active-table; do
-  delete_file "${PRJ_DIR}/${_file}"
+  config apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt active-table; do
+  delete_file "${INSTALL_DIR}/${_file}"
 done
 
 for _file in ip.txt domain.txt domain-asn.txt asn.txt; do
-  delete_file "${PRJ_DIR}/sources/${_file}"
+  delete_file "${INSTALL_DIR}/sources/${_file}"
 done
 
-if [ -d "${PRJ_DIR}/sources" ] && \
-  [ "$(echo "${PRJ_DIR}/sources/"*)" = "${PRJ_DIR}/sources/*" ]; then
-  if rm -r "${PRJ_DIR}/sources" 2>/dev/null; then
-    msg "Directory \"${PRJ_DIR}/sources\" removed."
+if [ -d "${INSTALL_DIR}/sources" ] && \
+  [ "$(echo "${INSTALL_DIR}/sources/"*)" = "${INSTALL_DIR}/sources/*" ]; then
+  if rm -r "${INSTALL_DIR}/sources" 2>/dev/null; then
+    msg "Directory \"${INSTALL_DIR}/sources\" removed."
   else
-    error_msg "Failed to remove directory \"${PRJ_DIR}/sources\"."
+    error_msg "Failed to remove directory \"${INSTALL_DIR}/sources\"."
   fi
 fi
 
 # https://unix.stackexchange.com/a/615900
-if [ -d "${PRJ_DIR}" ] && \
-  [ "$(echo "${PRJ_DIR}/"*)" = "${PRJ_DIR}/*" ]; then
-  if rm -r "${PRJ_DIR}" 2>/dev/null; then
-    msg "Directory \"${PRJ_DIR}\" removed."
+if [ -d "${INSTALL_DIR}" ] && \
+  [ "$(echo "${INSTALL_DIR}/"*)" = "${INSTALL_DIR}/*" ]; then
+  if rm -r "${INSTALL_DIR}" 2>/dev/null; then
+    msg "Directory \"${INSTALL_DIR}\" removed."
   else
-    error_msg "Failed to remove directory \"${PRJ_DIR}\"."
+    error_msg "Failed to remove directory \"${INSTALL_DIR}\"."
   fi
 fi
 

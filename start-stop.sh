@@ -2,9 +2,9 @@
 
 INSTALL_DIR="/opt/etc/route-veil"
 CONFIG="${INSTALL_DIR}/config"
-PARSER="${INSTALL_DIR}/parser.sh"
+APPLY_ROUTES="${INSTALL_DIR}/apply-routes.sh"
 RULE_PRIORITY="1995"
-PIDFILE_DEFAULT="/tmp/parser.sh.pid"
+PIDFILE_DEFAULT="/tmp/apply-routes.sh.pid"
 [ -f "$CONFIG" ] || exit 0
 . "$CONFIG"
 
@@ -57,7 +57,7 @@ rule_delete() {
 [ "$1" != "hook" ] && exit 0
 [ "$system_name" != "$IFACE" ] && exit 0
 
-kill_parser() {
+kill_apply_routes() {
   PIDFILE="${PIDFILE:-$PIDFILE_DEFAULT}"
   if [ -e "$PIDFILE" ]; then
     PID="$(cat "$PIDFILE")"
@@ -73,12 +73,12 @@ case ${connected}-${link}-${up} in
   yes-up-up)
     ACTIVE_TABLE="$(active_table_read)"
     if rule_add "$ACTIVE_TABLE"; then
-      log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for $(rule_desc "$ACTIVE_TABLE")."
+        log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for $(rule_desc "$ACTIVE_TABLE")."
       if [ -z "$(ip route list table "$ACTIVE_TABLE" 2>/dev/null)" ]; then
-        ROUTE_TABLE="$ACTIVE_TABLE" "$PARSER" &
-        log_info "Active table ${ACTIVE_TABLE} is empty. parser.sh started."
+        ROUTE_TABLE="$ACTIVE_TABLE" "$APPLY_ROUTES" &
+        log_info "Active table ${ACTIVE_TABLE} is empty. apply-routes.sh started."
       else
-        log_info "Active table ${ACTIVE_TABLE} already populated. parser.sh skipped."
+        log_info "Active table ${ACTIVE_TABLE} already populated. apply-routes.sh skipped."
       fi
     else
       log_error "Failed to enable policy rule for $(rule_desc "$ACTIVE_TABLE")."
@@ -86,7 +86,7 @@ case ${connected}-${link}-${up} in
   ;;
   no-down-*)
     ACTIVE_TABLE="$(active_table_read)"
-    kill_parser
+    kill_apply_routes
     rule_delete "$ACTIVE_TABLE"
     log_info "Tunnel interface \"${IFACE}\" is down. Policy rule disabled for $(rule_desc "$ACTIVE_TABLE")."
   ;;

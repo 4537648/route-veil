@@ -95,7 +95,7 @@ fi
 
 [ ! -f "${INSTALL_DIR}/config" ] && download "${REPO_URL}/config" "${INSTALL_DIR}/config"
 
-for _file in parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh; do
+for _file in apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh; do
   download "${REPO_URL}/${_file}" "${INSTALL_DIR}/${_file}"
   mk_file_exec "${INSTALL_DIR}/${_file}"
 done

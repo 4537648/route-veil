@@ -18,7 +18,7 @@ log_error() {
 
 INSTALL_DIR="/opt/etc/route-veil"
 BUILDER="${INSTALL_DIR}/builder.sh"
-PARSER="${INSTALL_DIR}/parser.sh"
+APPLY_ROUTES="${INSTALL_DIR}/apply-routes.sh"
 CONFIG="${INSTALL_DIR}/config"
 RULE_PRIORITY="1995"
 
@@ -66,7 +66,7 @@ table_flush() {
   ip route flush table "$1" >/dev/null 2>&1
 }
 
-for _file in "$BUILDER" "$PARSER"; do
+for _file in "$BUILDER" "$APPLY_ROUTES"; do
   [ -x "$_file" ] || {
     error_msg "\"${_file}\" is required to refresh routes."
     log_error "\"${_file}\" is required to refresh routes."
@@ -128,9 +128,9 @@ table_flush "$STAGING_TABLE"
   exit 1
 }
 
-ROUTE_TABLE="$STAGING_TABLE" "$PARSER" || {
+ROUTE_TABLE="$STAGING_TABLE" "$APPLY_ROUTES" || {
   table_flush "$STAGING_TABLE"
-  log_error "parser.sh failed."
+  log_error "apply-routes.sh failed."
   exit 1
 }
 

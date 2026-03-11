@@ -24,12 +24,12 @@ check_ip() {
 
 log_info() {
   msg "$1"
-  logger -t "route-veil/parser" "$1"
+  logger -t "route-veil/apply-routes" "$1"
 }
 
 log_error() {
   error_msg "$1"
-  logger -t "route-veil/parser" "Error: $1"
+  logger -t "route-veil/apply-routes" "Error: $1"
 }
 
 failure() {
@@ -39,7 +39,7 @@ failure() {
 
 INSTALL_DIR="/opt/etc/route-veil"
 CONFIG="${INSTALL_DIR}/config"
-PIDFILE_DEFAULT="/tmp/parser.sh.pid"
+PIDFILE_DEFAULT="/tmp/apply-routes.sh.pid"
 
 if [ -f "$CONFIG" ]; then
   . "$CONFIG"
