@@ -5,7 +5,7 @@ msg() {
 }
 
 error_msg() {
-  printf "[!] %s\n" "$1"
+  printf "[!] %s\n" "$1" >&2
 }
 
 log_info() {
@@ -14,6 +14,12 @@ log_info() {
 
 log_error() {
   logger -t "route-veil/uninstall" "Error: $1"
+}
+
+failure() {
+  error_msg "$1"
+  log_error "$1"
+  exit 1
 }
 
 delete_file() {
@@ -30,6 +36,7 @@ delete_file() {
 
 INSTALL_DIR="/opt/etc/route-veil"
 CONFIG="${INSTALL_DIR}/config"
+RULE_PRIORITY="1995"
 
 TABLE_PRIMARY="1000"
 TABLE_SECONDARY="1001"
@@ -42,22 +49,20 @@ TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
 
 rule_delete() {
   if [ -n "$RULE_IIF" ]; then
-    ip rule del iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   else
-    ip rule del table "$1" priority 1995 2>/dev/null
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   fi
 }
 
 for _tool in ip rm; do
-  command -v "$_tool" >/dev/null 2>&1 || {
-    error_msg "\"${_tool}\" is required to run this script."
-    log_error "\"${_tool}\" is required to run this script."
-    exit 1
-  }
+  command -v "$_tool" >/dev/null 2>&1 || \
+  failure "\"${_tool}\" is required to run this script."
 done
 
 # https://stackoverflow.com/a/226724
-read -p "Proceed with removal? [y/n] " yn
+printf "%s" "Proceed with removal? [y/n] "
+read yn
 case "$yn" in
   [Yy]*) ;;
       *) msg "Removal cancelled."; exit 1;;

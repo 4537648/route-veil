@@ -44,7 +44,7 @@ download() {
   fi
 }
 
-mk_file_exec() {
+make_executable() {
   check_command chmod || failure "chmod is required to change file permissions."
   if chmod +x "$1" 2>/dev/null; then
     msg "Executable permission set for file \"${1}\"."
@@ -53,13 +53,13 @@ mk_file_exec() {
   fi
 }
 
-crt_symlink() {
+create_symlink() {
   check_command ln || failure "ln is required to create symlinks."
   if ln -sf "$1" "$2" 2>/dev/null; then
     msg "Symlink \"${2##*/}\" created in \"${2%/*}\"."
   else
     failure "Failed to create symlink \"${2##*/}\"."
-fi
+  fi
 }
 
 msg "Installing route-veil..."
@@ -97,7 +97,7 @@ fi
 
 for _file in apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh; do
   download "${REPO_URL}/${_file}" "${INSTALL_DIR}/${_file}"
-  mk_file_exec "${INSTALL_DIR}/${_file}"
+  make_executable "${INSTALL_DIR}/${_file}"
 done
 
 if [ ! -d "$SOURCES_DIR" ]; then
@@ -118,10 +118,10 @@ for _file in ip.txt domain.txt domain-asn.txt asn.txt; do
   fi
 done
 
-crt_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
+create_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
 log_info "Tunnel state hook installed."
 
-crt_symlink "${INSTALL_DIR}/refresh.sh" "/opt/etc/cron.daily/routing_table_update"
+create_symlink "${INSTALL_DIR}/refresh.sh" "/opt/etc/cron.daily/routing_table_update"
 log_info "Daily route refresh job installed."
 
 /opt/etc/init.d/S10cron restart >/dev/null 2>&1 && \
