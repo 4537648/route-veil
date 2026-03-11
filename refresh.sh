@@ -108,12 +108,14 @@ msg "Refreshing route list and routing table..."
 
 ACTIVE_TABLE="$(active_table_read)"
 if active_table_exists; then
+  ACTIVE_TABLE_WAS_SET="1"
   if [ "$ACTIVE_TABLE" = "$TABLE_PRIMARY" ]; then
     STAGING_TABLE="$TABLE_SECONDARY"
   else
     STAGING_TABLE="$TABLE_PRIMARY"
   fi
 else
+  ACTIVE_TABLE_WAS_SET="0"
   STAGING_TABLE="$TABLE_PRIMARY"
 fi
 
@@ -157,8 +159,15 @@ if ! active_table_write "$STAGING_TABLE"; then
   exit 1
 fi
 
-table_flush "$ACTIVE_TABLE"
-log_info "Policy rule switched from $(rule_desc "$ACTIVE_TABLE") to $(rule_desc "$STAGING_TABLE")."
+if [ "$ACTIVE_TABLE" != "$STAGING_TABLE" ]; then
+  table_flush "$ACTIVE_TABLE"
+fi
+
+if [ "$ACTIVE_TABLE_WAS_SET" = "1" ]; then
+  log_info "Policy rule switched from $(rule_desc "$ACTIVE_TABLE") to $(rule_desc "$STAGING_TABLE")."
+else
+  log_info "Policy rule enabled for $(rule_desc "$STAGING_TABLE")."
+fi
 log_info "Daily refresh completed."
 msg "Refresh completed."
 
