@@ -7,5 +7,13 @@ FILE="/opt/etc/route-veil/route-list.txt"
 # Directory with source lists for builder.sh
 SOURCE_DIR="/opt/etc/route-veil/sources"
 
+# Incoming interface for policy routing. Leave empty to apply to all traffic.
+RULE_IIF="br0"
+
+# Active/staging routing tables
+TABLE_PRIMARY="1000"
+TABLE_SECONDARY="1001"
+ACTIVE_TABLE_FILE="/opt/etc/route-veil/active-table"
+
 # Minimum number of RIPEstat peers that must see the ASN prefix
 MIN_PEERS_SEEING="10"

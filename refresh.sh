@@ -16,20 +16,50 @@ log_error() {
   logger -t "route-veil/refresh" "Error: $1"
 }
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-BUILDER="${SCRIPT_DIR}/builder.sh"
-PARSER="${SCRIPT_DIR}/parser.sh"
-CONFIG="${SCRIPT_DIR}/config"
-RULE_IIF="br0"
-RULE_TABLE="1000"
+INSTALL_DIR="/opt/etc/route-veil"
+BUILDER="${INSTALL_DIR}/builder.sh"
+PARSER="${INSTALL_DIR}/parser.sh"
+CONFIG="${INSTALL_DIR}/config"
 RULE_PRIORITY="1995"
 
+rule_desc() {
+  if [ -n "$RULE_IIF" ]; then
+    printf "%s\n" "${RULE_IIF} -> table $1"
+  else
+    printf "%s\n" "all traffic -> table $1"
+  fi
+}
+
+active_table_read() {
+  if [ -f "$ACTIVE_TABLE_FILE" ]; then
+    sed -n '1p' "$ACTIVE_TABLE_FILE"
+  else
+    printf "%s\n" "$TABLE_PRIMARY"
+  fi
+}
+
+active_table_write() {
+  printf "%s\n" "$1" > "$ACTIVE_TABLE_FILE"
+}
+
 rule_delete() {
-  ip rule del iif "$RULE_IIF" table "$RULE_TABLE" priority "$RULE_PRIORITY" 2>/dev/null
+  if [ -n "$RULE_IIF" ]; then
+    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+  else
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+  fi
 }
 
 rule_add() {
-  ip rule add iif "$RULE_IIF" table "$RULE_TABLE" priority "$RULE_PRIORITY" 2>/dev/null
+  if [ -n "$RULE_IIF" ]; then
+    ip rule add iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+  else
+    ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+  fi
+}
+
+table_flush() {
+  ip route flush table "$1" >/dev/null 2>&1
 }
 
 for _file in "$BUILDER" "$PARSER"; do
@@ -47,6 +77,11 @@ done
 }
 
 . "$CONFIG"
+
+RULE_IIF="${RULE_IIF-br0}"
+TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
+TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
+ACTIVE_TABLE_FILE="${ACTIVE_TABLE_FILE:-${INSTALL_DIR}/active-table}"
 
 command -v ip >/dev/null 2>&1 || {
   error_msg "\"ip\" is required to refresh routes."
@@ -67,20 +102,55 @@ fi
 log_info "Daily refresh started."
 msg "Refreshing route list and routing table..."
 
-rule_delete && log_info "Policy rule temporarily disabled for refresh."
+ACTIVE_TABLE="$(active_table_read)"
+if [ "$ACTIVE_TABLE" = "$TABLE_PRIMARY" ]; then
+  STAGING_TABLE="$TABLE_SECONDARY"
+else
+  STAGING_TABLE="$TABLE_PRIMARY"
+fi
+
+log_info "Active table: ${ACTIVE_TABLE}. Staging table: ${STAGING_TABLE}."
+table_flush "$STAGING_TABLE"
 
 "$BUILDER" || {
+  table_flush "$STAGING_TABLE"
   log_error "builder.sh failed."
   exit 1
 }
 
-"$PARSER" || {
+ROUTE_TABLE="$STAGING_TABLE" "$PARSER" || {
+  table_flush "$STAGING_TABLE"
   log_error "parser.sh failed."
   exit 1
 }
 
-rule_add
-log_info "Policy rule enabled after successful refresh."
+rule_delete "$ACTIVE_TABLE" >/dev/null 2>&1 || true
+
+if ! rule_add "$STAGING_TABLE"; then
+  table_flush "$STAGING_TABLE"
+  log_error "Failed to enable policy rule for table ${STAGING_TABLE}. Attempting rollback."
+  if rule_add "$ACTIVE_TABLE"; then
+    log_info "Rollback succeeded. Policy rule restored for table ${ACTIVE_TABLE}."
+  else
+    log_error "Rollback failed. Policy rule for table ${ACTIVE_TABLE} could not be restored."
+  fi
+  exit 1
+fi
+
+if ! active_table_write "$STAGING_TABLE"; then
+  table_flush "$STAGING_TABLE"
+  log_error "Failed to update active-table. Attempting rollback."
+  rule_delete "$STAGING_TABLE" >/dev/null 2>&1 || true
+  if rule_add "$ACTIVE_TABLE"; then
+    log_info "Rollback succeeded. Policy rule restored for table ${ACTIVE_TABLE}."
+  else
+    log_error "Rollback failed. Policy rule for table ${ACTIVE_TABLE} could not be restored."
+  fi
+  exit 1
+fi
+
+table_flush "$ACTIVE_TABLE"
+log_info "Policy rule switched from $(rule_desc "$ACTIVE_TABLE") to $(rule_desc "$STAGING_TABLE")."
 log_info "Daily refresh completed."
 msg "Refresh completed."
 

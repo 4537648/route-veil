@@ -29,6 +29,24 @@ delete_file() {
 }
 
 PRJ_DIR="/opt/etc/route-veil"
+CONFIG="${PRJ_DIR}/config"
+
+TABLE_PRIMARY="1000"
+TABLE_SECONDARY="1001"
+
+[ -f "$CONFIG" ] && . "$CONFIG"
+
+RULE_IIF="${RULE_IIF-br0}"
+TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
+TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
+
+rule_delete() {
+  if [ -n "$RULE_IIF" ]; then
+    ip rule del iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+  else
+    ip rule del table "$1" priority 1995 2>/dev/null
+  fi
+}
 
 for _tool in ip rm; do
   command -v "$_tool" >/dev/null 2>&1 || {
@@ -47,22 +65,26 @@ esac
 
 log_info "Removal started."
 
-if ip route flush table 1000; then
-  msg "Routing table #1000 flushed."
-  log_info "Routing table #1000 flushed."
-fi
+for _table in "$TABLE_PRIMARY" "$TABLE_SECONDARY"; do
+  if ip route flush table "$_table"; then
+    msg "Routing table #${_table} flushed."
+    log_info "Routing table #${_table} flushed."
+  fi
+done
 
-if ip rule del priority 1995 2>/dev/null; then
-  msg "Routing rule removed."
-  log_info "Routing rule removed."
-fi
+for _table in "$TABLE_PRIMARY" "$TABLE_SECONDARY"; do
+  if rule_delete "$_table"; then
+    msg "Routing rule for table #${_table} removed."
+    log_info "Routing rule for table #${_table} removed."
+  fi
+done
 
 delete_file "/opt/etc/cron.daily/routing_table_update" "Symlink" "symlink"
 delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Symlink" "symlink"
 log_info "Scheduled job and tunnel state hook removed."
 
 for _file in \
-  config parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt; do
+  config parser.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt active-table; do
   delete_file "${PRJ_DIR}/${_file}"
 done
 

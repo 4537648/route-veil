@@ -1,7 +1,7 @@
 #!/bin/sh
 
 add_ip() {
-  ip route add table 1000 "$1" dev "$IFACE" 2>/dev/null
+  ip route add table "$ROUTE_TABLE" "$1" dev "$IFACE" 2>/dev/null
 }
 
 check_ip() {
@@ -36,6 +36,8 @@ else
   logger_failure "Failed to find file \"config\"."
 fi
 
+ROUTE_TABLE="${ROUTE_TABLE:-${TABLE_PRIMARY:-1000}}"
+
 for _tool in dig grep ip rm seq sleep; do
   command -v "$_tool" >/dev/null 2>&1 || \
   logger_failure "\"${_tool}\" is required to run this script."
@@ -64,10 +66,10 @@ for _attempt in $(seq 0 10); do
   sleep 1
 done
 
-if ip route flush table 1000; then
-  logger_msg "Routing table #1000 flushed."
+if ip route flush table "$ROUTE_TABLE"; then
+  logger_msg "Routing table #${ROUTE_TABLE} flushed."
 else
-  logger_failure "Failed to flush routing table #1000."
+  logger_failure "Failed to flush routing table #${ROUTE_TABLE}."
 fi
 
 logger_msg "Processing $(grep -c "" "$FILE") line(s) from file \"${FILE}\"..."
@@ -88,6 +90,6 @@ while read -r line || [ -n "$line" ]; do
   fi
 done < "$FILE"
 
-logger_msg "Processing completed. #1000: $(ip route list table 1000 | wc -l)."
+logger_msg "Processing completed. #${ROUTE_TABLE}: $(ip route list table "$ROUTE_TABLE" | wc -l)."
 
 exit 0

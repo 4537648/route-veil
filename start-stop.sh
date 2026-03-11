@@ -4,8 +4,45 @@ CONFIG="/opt/etc/route-veil/config"
 [ -f "$CONFIG" ] || exit 0
 . "$CONFIG"
 
+TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
+TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
+ACTIVE_TABLE_FILE="${ACTIVE_TABLE_FILE:-/opt/etc/route-veil/active-table}"
+RULE_IIF="${RULE_IIF-br0}"
+
 log_info() {
   logger -t "route-veil/hook" "$1"
+}
+
+active_table_read() {
+  if [ -f "$ACTIVE_TABLE_FILE" ]; then
+    sed -n '1p' "$ACTIVE_TABLE_FILE"
+  else
+    printf "%s\n" "$TABLE_PRIMARY"
+  fi
+}
+
+rule_desc() {
+  if [ -n "$RULE_IIF" ]; then
+    printf "%s\n" "${RULE_IIF} -> table $1"
+  else
+    printf "%s\n" "all traffic -> table $1"
+  fi
+}
+
+rule_add() {
+  if [ -n "$RULE_IIF" ]; then
+    ip rule add iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+  else
+    ip rule add table "$1" priority 1995 2>/dev/null
+  fi
+}
+
+rule_delete() {
+  if [ -n "$RULE_IIF" ]; then
+    ip rule del iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+  else
+    ip rule del table "$1" priority 1995 2>/dev/null
+  fi
 }
 
 # https://github.com/ndmsystems/packages/wiki/Opkg-Component
@@ -26,15 +63,24 @@ kill_parser() {
 
 case ${connected}-${link}-${up} in
   yes-up-up)
-    ip rule add iif br0 table 1000 priority 1995 2>/dev/null
-    log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for br0 -> table 1000."
-    /opt/etc/route-veil/parser.sh &
-    log_info "parser.sh started."
+    ACTIVE_TABLE="$(active_table_read)"
+    if rule_add "$ACTIVE_TABLE"; then
+      log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for $(rule_desc "$ACTIVE_TABLE")."
+      if [ -z "$(ip route list table "$ACTIVE_TABLE" 2>/dev/null)" ]; then
+        ROUTE_TABLE="$ACTIVE_TABLE" /opt/etc/route-veil/parser.sh &
+        log_info "Active table ${ACTIVE_TABLE} is empty. parser.sh started."
+      else
+        log_info "Active table ${ACTIVE_TABLE} already populated. parser.sh skipped."
+      fi
+    else
+      logger -t "route-veil/hook" "Error: Failed to enable policy rule for $(rule_desc "$ACTIVE_TABLE")."
+    fi
   ;;
   no-down-*)
+    ACTIVE_TABLE="$(active_table_read)"
     kill_parser
-    ip rule del iif br0 table 1000 priority 1995 2>/dev/null
-    log_info "Tunnel interface \"${IFACE}\" is down. Policy rule disabled for br0 -> table 1000."
+    rule_delete "$ACTIVE_TABLE"
+    log_info "Tunnel interface \"${IFACE}\" is down. Policy rule disabled for $(rule_desc "$ACTIVE_TABLE")."
   ;;
 esac
 
