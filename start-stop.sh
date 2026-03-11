@@ -1,6 +1,10 @@
 #!/bin/sh
 
-CONFIG="/opt/etc/route-veil/config"
+INSTALL_DIR="/opt/etc/route-veil"
+CONFIG="${INSTALL_DIR}/config"
+PARSER="${INSTALL_DIR}/parser.sh"
+RULE_PRIORITY="1995"
+PIDFILE_DEFAULT="/tmp/parser.sh.pid"
 [ -f "$CONFIG" ] || exit 0
 . "$CONFIG"
 
@@ -11,6 +15,10 @@ RULE_IIF="${RULE_IIF-br0}"
 
 log_info() {
   logger -t "route-veil/hook" "$1"
+}
+
+log_error() {
+  logger -t "route-veil/hook" "Error: $1"
 }
 
 active_table_read() {
@@ -31,17 +39,17 @@ rule_desc() {
 
 rule_add() {
   if [ -n "$RULE_IIF" ]; then
-    ip rule add iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+    ip rule add iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   else
-    ip rule add table "$1" priority 1995 2>/dev/null
+    ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   fi
 }
 
 rule_delete() {
   if [ -n "$RULE_IIF" ]; then
-    ip rule del iif "$RULE_IIF" table "$1" priority 1995 2>/dev/null
+    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   else
-    ip rule del table "$1" priority 1995 2>/dev/null
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
   fi
 }
 
@@ -50,7 +58,7 @@ rule_delete() {
 [ "$system_name" != "$IFACE" ] && exit 0
 
 kill_parser() {
-  PIDFILE="${PIDFILE:-/tmp/parser.sh.pid}"
+  PIDFILE="${PIDFILE:-$PIDFILE_DEFAULT}"
   if [ -e "$PIDFILE" ]; then
     PID="$(cat "$PIDFILE")"
     if [ -n "$PID" ] && [ -d "/proc/${PID}" ]; then
@@ -67,13 +75,13 @@ case ${connected}-${link}-${up} in
     if rule_add "$ACTIVE_TABLE"; then
       log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for $(rule_desc "$ACTIVE_TABLE")."
       if [ -z "$(ip route list table "$ACTIVE_TABLE" 2>/dev/null)" ]; then
-        ROUTE_TABLE="$ACTIVE_TABLE" /opt/etc/route-veil/parser.sh &
+        ROUTE_TABLE="$ACTIVE_TABLE" "$PARSER" &
         log_info "Active table ${ACTIVE_TABLE} is empty. parser.sh started."
       else
         log_info "Active table ${ACTIVE_TABLE} already populated. parser.sh skipped."
       fi
     else
-      logger -t "route-veil/hook" "Error: Failed to enable policy rule for $(rule_desc "$ACTIVE_TABLE")."
+      log_error "Failed to enable policy rule for $(rule_desc "$ACTIVE_TABLE")."
     fi
   ;;
   no-down-*)

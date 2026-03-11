@@ -144,7 +144,7 @@ By default these are tables `1000` and `1001`. The currently active table number
 
 During `refresh.sh`:
 - `builder.sh` rebuilds `route-list.txt`;
-- `parser.sh` populates the staging table;
+- `parser.sh` populates the staging table from ready IPv4/CIDR entries in `route-list.txt`;
 - only after a successful rebuild does the policy rule switch to the staging table;
 - the previously active table is then cleared.
 
@@ -194,7 +194,7 @@ To rebuild the route list and immediately apply it manually:
 /opt/etc/route-veil/refresh.sh
 ```
 
-`refresh.sh` rebuilds `route-list.txt`, populates the staging table, switches the policy rule to it, updates `active-table`, and then clears the previously active table. This makes it suitable both for daily scheduled refreshes and for the first manual activation on a router where the tunnel is already up.
+`refresh.sh` rebuilds `route-list.txt`, populates the staging table, switches the policy rule to it, updates `active-table`, and then clears the previously active table. `builder.sh` is the only component that resolves domains and ASNs; `parser.sh` applies only ready IPv4/CIDR routes from `route-list.txt`. This makes `refresh.sh` suitable both for daily scheduled refreshes and for the first manual activation on a router where the tunnel is already up.
 
 ## Scheduled jobs
 
