@@ -32,6 +32,18 @@ After installation:
 
 Automatic migration of local configuration and source files between incompatible project versions is not provided. When upgrading an existing installation, review your local files in `/opt/etc/route-veil/` and adapt or move them manually if file names, paths, or formats have changed.
 
+To update the installed project code without removing local data, run:
+
+```shell
+/opt/etc/route-veil/upgrade.sh
+```
+
+`upgrade.sh` updates the project scripts, ensures the required packages are installed, recreates the hook and daily job symlinks, and restarts cron. It preserves:
+- `/opt/etc/route-veil/config`
+- `/opt/etc/route-veil/sources/*`
+- `/opt/etc/route-veil/route-list.txt`
+- `/opt/etc/route-veil/active-table`
+
 ### Example config
 
 ```shell

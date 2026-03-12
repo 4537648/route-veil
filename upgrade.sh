@@ -9,15 +9,15 @@ msg() {
 }
 
 error_msg() {
-  printf "[!] %s\n" "$1"
+  printf "[!] %s\n" "$1" >&2
 }
 
 log_info() {
-  logger -t "route-veil/install" "$1"
+  logger -t "route-veil/upgrade" "$1"
 }
 
 log_error() {
-  logger -t "route-veil/install" "Error: $1"
+  logger -t "route-veil/upgrade" "Error: $1"
 }
 
 failure() {
@@ -38,7 +38,7 @@ pkg_install() {
 download() {
   check_command curl || failure "curl is required to download files."
   if curl -sfL --connect-timeout 7 "$1" -o "$2"; then
-    msg "File \"${2##*/}\" downloaded."
+    msg "File \"${2##*/}\" updated."
   else
     failure "Failed to download file \"${2##*/}\"."
   fi
@@ -62,12 +62,14 @@ create_symlink() {
   fi
 }
 
-msg "Installing route-veil..."
-log_info "Installation started."
+msg "Upgrading route-veil..."
+log_info "Upgrade started."
 
 INSTALL_DIR="/opt/etc/route-veil"
 SOURCES_DIR="${INSTALL_DIR}/sources"
 REPO_URL="https://raw.githubusercontent.com/4537648/route-veil/main"
+
+[ -d "$INSTALL_DIR" ] || failure "Directory \"${INSTALL_DIR}\" does not exist. Install route-veil first."
 
 check_command opkg || failure "opkg is required to install packages."
 opkg update >/dev/null 2>&1 || failure "Failed to update the Entware package list."
@@ -84,16 +86,6 @@ for pkg in bind-dig cron grep jq python3; do
     /opt/etc/init.d/S10cron restart >/dev/null
   fi
 done
-
-if [ ! -d "$INSTALL_DIR" ]; then
-  if mkdir -p "$INSTALL_DIR"; then
-    msg "Directory \"${INSTALL_DIR}\" created."
-  else
-    failure "Failed to create directory \"${INSTALL_DIR}\"."
-  fi
-fi
-
-[ ! -f "${INSTALL_DIR}/config" ] && download "${REPO_URL}/config" "${INSTALL_DIR}/config"
 
 for _file in apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh upgrade.sh; do
   download "${REPO_URL}/${_file}" "${INSTALL_DIR}/${_file}"
@@ -119,24 +111,14 @@ for _file in ip.txt domain.txt domain-asn.txt asn.txt; do
 done
 
 create_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
-log_info "Tunnel state hook installed."
-
 create_symlink "${INSTALL_DIR}/refresh.sh" "/opt/etc/cron.daily/routing_table_update"
-log_info "Daily route refresh job installed."
 
 /opt/etc/init.d/S10cron restart >/dev/null 2>&1 && \
 msg "Cron restarted."
 
-if [ ! -f "${INSTALL_DIR}/route-list.txt" ]; then
-  if touch "${INSTALL_DIR}/route-list.txt" 2>/dev/null; then
-    msg "File \"${INSTALL_DIR}/route-list.txt\" created."
-  else
-    error_msg "Failed to create file \"${INSTALL_DIR}/route-list.txt\"."
-  fi
-fi
-
-printf "%s\n" "---" "Installation completed."
-msg "Set the tunnel interface name in config, populate sources/, then run refresh.sh."
-log_info "Installation completed."
+msg "Local config, sources/, route-list.txt and active-table were preserved."
+msg "Review README if the new version introduces manual config changes."
+printf "%s\n" "---" "Upgrade completed."
+log_info "Upgrade completed."
 
 exit 0

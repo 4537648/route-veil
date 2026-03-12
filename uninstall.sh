@@ -89,7 +89,7 @@ delete_file "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch" "Symlink" "symlink"
 log_info "Scheduled job and tunnel state hook removed."
 
 for _file in \
-  config apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh route-list.txt active-table; do
+  config apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh upgrade.sh route-list.txt active-table; do
   delete_file "${INSTALL_DIR}/${_file}"
 done
 
