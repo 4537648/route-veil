@@ -49,6 +49,7 @@ fi
 
 ROUTE_TABLE="${ROUTE_TABLE:-${TABLE_PRIMARY:-1000}}"
 invalid_entries=0
+route_entries=0
 
 for _tool in grep ip rm; do
   command -v "$_tool" >/dev/null 2>&1 || \
@@ -75,7 +76,16 @@ else
   failure "Failed to flush routing table #${ROUTE_TABLE}."
 fi
 
-log_info "Processing $(grep -c "" "$FILE") line(s) from file \"${FILE}\"..."
+while read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  case "$line" in
+    \#*) continue ;;
+  esac
+
+  check_ip "$line" && route_entries=$((route_entries + 1))
+done < "$FILE"
+
+log_info "Processing ${route_entries} route(s) from file \"${FILE}\"..."
 
 while read -r line || [ -n "$line" ]; do
   [ -z "$line" ] && continue
