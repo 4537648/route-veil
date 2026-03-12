@@ -69,6 +69,16 @@ INSTALL_DIR="/opt/etc/route-veil"
 SOURCES_DIR="${INSTALL_DIR}/sources"
 REPO_URL="https://raw.githubusercontent.com/4537648/route-veil/main"
 
+check_command mktemp || failure "mktemp is required to prepare self-update."
+SELF_UPDATE_FILE="$(mktemp "${TMPDIR:-/tmp}/upgrade.XXXXXX")" || \
+failure "Failed to create a temporary file for self-update."
+
+cleanup() {
+  rm -f "$SELF_UPDATE_FILE"
+}
+
+trap cleanup EXIT INT TERM QUIT HUP
+
 [ -d "$INSTALL_DIR" ] || failure "Directory \"${INSTALL_DIR}\" does not exist. Install route-veil first."
 
 check_command opkg || failure "opkg is required to install packages."
@@ -87,10 +97,12 @@ for pkg in bind-dig cron grep ip-full jq python3; do
   fi
 done
 
-for _file in apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh upgrade.sh; do
+for _file in apply-routes.sh start-stop.sh uninstall.sh builder.sh refresh.sh; do
   download "${REPO_URL}/${_file}" "${INSTALL_DIR}/${_file}"
   make_executable "${INSTALL_DIR}/${_file}"
 done
+
+download "${REPO_URL}/upgrade.sh" "$SELF_UPDATE_FILE"
 
 if [ ! -d "$SOURCES_DIR" ]; then
   if mkdir -p "$SOURCES_DIR"; then
@@ -112,6 +124,11 @@ done
 
 create_symlink "${INSTALL_DIR}/start-stop.sh" "/opt/etc/ndm/ifstatechanged.d/ip_rule_switch"
 create_symlink "${INSTALL_DIR}/refresh.sh" "/opt/etc/cron.daily/routing_table_update"
+
+check_command mv || failure "mv is required to complete self-update."
+mv "$SELF_UPDATE_FILE" "${INSTALL_DIR}/upgrade.sh" || \
+failure "Failed to replace file \"upgrade.sh\"."
+make_executable "${INSTALL_DIR}/upgrade.sh"
 
 /opt/etc/init.d/S10cron restart >/dev/null 2>&1 && \
 msg "Cron restarted."
