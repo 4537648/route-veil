@@ -4,8 +4,6 @@ add_ip() {
   ip route add table "$ROUTE_TABLE" "$1" dev "$IFACE" 2>/dev/null
 }
 
-IP_CIDR_ERE='^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(/(3[0-2]|[12]?[0-9]))?$'
-
 msg() {
   printf "%s\n" "$1"
 }
@@ -14,21 +12,11 @@ error_msg() {
   printf "[!] %s\n" "$1" >&2
 }
 
-check_ip() {
-  if printf "%s\n" "$1" | grep -qE "$IP_CIDR_ERE"; then
-    return 0
-  else
-    return 1
-  fi
-}
-
 count_route_entries() {
   awk '
     /^[[:space:]]*$/ { next }
     /^[[:space:]]*#/ { next }
-    /^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/(3[0-2]|[12]?[0-9]))?$/ {
-      count++
-    }
+    { count++ }
     END {
       print count + 0
     }
@@ -61,10 +49,9 @@ else
 fi
 
 ROUTE_TABLE="${ROUTE_TABLE:-${TABLE_PRIMARY:-1000}}"
-invalid_entries=0
 route_entries=0
 
-for _tool in awk grep ip rm; do
+for _tool in awk ip rm; do
   command -v "$_tool" >/dev/null 2>&1 || \
   failure "\"${_tool}\" is required to run this script."
 done
@@ -98,16 +85,8 @@ while read -r line || [ -n "$line" ]; do
     \#*) continue ;;
   esac
 
-  if check_ip "$line"; then
-    add_ip "$line"
-  else
-    invalid_entries=$((invalid_entries + 1))
-  fi
+  add_ip "$line"
 done < "$FILE"
-
-if [ "$invalid_entries" -gt 0 ]; then
-  log_info "Skipped ${invalid_entries} invalid non-IP/CIDR entr$( [ "$invalid_entries" -eq 1 ] && printf "y" || printf "ies" )."
-fi
 
 log_info "Processing completed. #${ROUTE_TABLE}: $(ip route list table "$ROUTE_TABLE" | wc -l)."
 

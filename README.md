@@ -146,6 +146,8 @@ During execution it prints short progress stages:
 
 `builder.sh` only rebuilds `/opt/etc/route-veil/route-list.txt`. To rebuild the route list and immediately apply it, use `refresh.sh`.
 
+`route-list.txt` is a generated file. It is rebuilt by `builder.sh` and is not intended for manual editing. Update `sources/*` instead, then run `refresh.sh`.
+
 ## Routing tables
 
 The project uses two routing tables:
@@ -166,6 +168,7 @@ This keeps the old working route set in place until the new one is fully ready.
 
 `route-list.txt` contains:
 - a header with the generation timestamp;
+- a note that the file is generated and should not be edited manually;
 - per-stage statistics as `#` comments;
 - source comments:
   - `# domain ...`
