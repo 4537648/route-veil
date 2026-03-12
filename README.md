@@ -21,7 +21,7 @@ The installer creates `/opt/etc/route-veil`, `/opt/etc/route-veil/sources`, down
 
 These source files are not stored in the Git repository. They are created as empty files during installation and are intended to be filled locally on the router.
 
-It also installs the required dependencies `bind-dig`, `cron`, `grep`, `jq`, `python3`, creates a tunnel state hook, and adds a daily refresh job.
+It also installs the required dependencies `bind-dig`, `cron`, `grep`, `ip-full`, `jq`, `python3`, creates a tunnel state hook, and adds a daily refresh job.
 
 After installation:
 - Edit `/opt/etc/route-veil/config` and set `IFACE`.

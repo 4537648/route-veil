@@ -72,7 +72,7 @@ REPO_URL="https://raw.githubusercontent.com/4537648/route-veil/main"
 check_command opkg || failure "opkg is required to install packages."
 opkg update >/dev/null 2>&1 || failure "Failed to update the Entware package list."
 
-for pkg in bind-dig cron grep jq python3; do
+for pkg in bind-dig cron grep ip-full jq python3; do
   [ -n "$(opkg status ${pkg})" ] && continue
 
   pkg_install "$pkg"
