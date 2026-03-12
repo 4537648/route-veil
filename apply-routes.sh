@@ -4,6 +4,8 @@ add_ip() {
   ip route add table "$ROUTE_TABLE" "$1" dev "$IFACE" 2>/dev/null
 }
 
+IP_CIDR_ERE='^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/(3[0-2]|[12]?[0-9]))?$'
+
 msg() {
   printf "%s\n" "$1"
 }
@@ -13,13 +15,24 @@ error_msg() {
 }
 
 check_ip() {
-  # https://stackoverflow.com/a/36760050
-  if echo "$1" | grep -qP \
-  '^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])(\.(?!$)|(\/(3[0-2]|[12][0-9]|[0-9]))?$)){4}$'; then
+  if printf "%s\n" "$1" | grep -qE "$IP_CIDR_ERE"; then
     return 0
   else
     return 1
   fi
+}
+
+count_route_entries() {
+  awk '
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+    /^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/(3[0-2]|[12]?[0-9]))?$/ {
+      count++
+    }
+    END {
+      print count + 0
+    }
+  ' "$1"
 }
 
 log_info() {
@@ -51,7 +64,7 @@ ROUTE_TABLE="${ROUTE_TABLE:-${TABLE_PRIMARY:-1000}}"
 invalid_entries=0
 route_entries=0
 
-for _tool in grep ip rm; do
+for _tool in awk grep ip rm; do
   command -v "$_tool" >/dev/null 2>&1 || \
   failure "\"${_tool}\" is required to run this script."
 done
@@ -76,15 +89,7 @@ else
   failure "Failed to flush routing table #${ROUTE_TABLE}."
 fi
 
-while read -r line || [ -n "$line" ]; do
-  [ -z "$line" ] && continue
-  case "$line" in
-    \#*) continue ;;
-  esac
-
-  check_ip "$line" && route_entries=$((route_entries + 1))
-done < "$FILE"
-
+route_entries="$(count_route_entries "$FILE")"
 log_info "Processing ${route_entries} route(s) from file \"${FILE}\"..."
 
 while read -r line || [ -n "$line" ]; do
