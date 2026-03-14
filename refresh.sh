@@ -23,8 +23,8 @@ CONFIG="${INSTALL_DIR}/config"
 RULE_PRIORITY="1995"
 
 rule_desc() {
-  if [ -n "$RULE_IIF" ]; then
-    printf "%s\n" "${RULE_IIF} -> table $1"
+  if [ -n "$RULE_IIF_LIST" ]; then
+    printf "%s\n" "$(printf "%s" "$RULE_IIF_LIST" | tr ' ' ',') -> table $1"
   else
     printf "%s\n" "all traffic -> table $1"
   fi
@@ -46,20 +46,32 @@ active_table_write() {
   printf "%s\n" "$1" > "$ACTIVE_TABLE_FILE"
 }
 
-rule_delete() {
-  if [ -n "$RULE_IIF" ]; then
-    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+rules_delete() {
+  if [ -n "$RULE_IIF_LIST" ]; then
+    for iface in $RULE_IIF_LIST; do
+      ip rule del iif "$iface" table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
+    done
   else
-    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
   fi
 }
 
-rule_add() {
-  if [ -n "$RULE_IIF" ]; then
-    ip rule add iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+rules_add() {
+  failed=0
+  if [ -n "$RULE_IIF_LIST" ]; then
+    for iface in $RULE_IIF_LIST; do
+      if ! ip rule add iif "$iface" table "$1" priority "$RULE_PRIORITY" 2>/dev/null; then
+        log_error "Failed to enable policy rule for interface \"${iface}\" in table ${1}."
+        failed=1
+      fi
+    done
   else
-    ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+    if ! ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null; then
+      log_error "Failed to enable policy rule for table ${1}."
+      failed=1
+    fi
   fi
+  return "$failed"
 }
 
 table_flush() {
@@ -82,7 +94,7 @@ done
 
 . "$CONFIG"
 
-RULE_IIF="${RULE_IIF-br0}"
+RULE_IIF_LIST="${RULE_IIF_LIST-br0}"
 TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
 TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
 ACTIVE_TABLE_FILE="${ACTIVE_TABLE_FILE:-${INSTALL_DIR}/active-table}"
@@ -134,15 +146,15 @@ ROUTE_TABLE="$STAGING_TABLE" "$APPLY_ROUTES" || {
   exit 1
 }
 
-rule_delete "$ACTIVE_TABLE" >/dev/null 2>&1 || true
+rules_delete "$ACTIVE_TABLE"
 
-if ! rule_add "$STAGING_TABLE"; then
+if ! rules_add "$STAGING_TABLE"; then
   table_flush "$STAGING_TABLE"
-  log_error "Failed to enable policy rule for table ${STAGING_TABLE}. Attempting rollback."
-  if rule_add "$ACTIVE_TABLE"; then
-    log_info "Rollback succeeded. Policy rule restored for table ${ACTIVE_TABLE}."
+  log_error "Failed to enable policy rules for table ${STAGING_TABLE}. Attempting rollback."
+  if rules_add "$ACTIVE_TABLE"; then
+    log_info "Rollback succeeded. Policy rules restored for table ${ACTIVE_TABLE}."
   else
-    log_error "Rollback failed. Policy rule for table ${ACTIVE_TABLE} could not be restored."
+    log_error "Rollback failed. Policy rules for table ${ACTIVE_TABLE} could not be restored."
   fi
   exit 1
 fi
@@ -150,11 +162,11 @@ fi
 if ! active_table_write "$STAGING_TABLE"; then
   table_flush "$STAGING_TABLE"
   log_error "Failed to update active-table. Attempting rollback."
-  rule_delete "$STAGING_TABLE" >/dev/null 2>&1 || true
-  if rule_add "$ACTIVE_TABLE"; then
-    log_info "Rollback succeeded. Policy rule restored for table ${ACTIVE_TABLE}."
+  rules_delete "$STAGING_TABLE"
+  if rules_add "$ACTIVE_TABLE"; then
+    log_info "Rollback succeeded. Policy rules restored for table ${ACTIVE_TABLE}."
   else
-    log_error "Rollback failed. Policy rule for table ${ACTIVE_TABLE} could not be restored."
+    log_error "Rollback failed. Policy rules for table ${ACTIVE_TABLE} could not be restored."
   fi
   exit 1
 fi
@@ -164,9 +176,9 @@ if [ "$ACTIVE_TABLE" != "$STAGING_TABLE" ]; then
 fi
 
 if [ "$ACTIVE_TABLE_WAS_SET" = "1" ]; then
-  log_info "Policy rule switched from $(rule_desc "$ACTIVE_TABLE") to $(rule_desc "$STAGING_TABLE")."
+  log_info "Policy rules switched from $(rule_desc "$ACTIVE_TABLE") to $(rule_desc "$STAGING_TABLE")."
 else
-  log_info "Policy rule enabled for $(rule_desc "$STAGING_TABLE")."
+  log_info "Policy rules enabled for $(rule_desc "$STAGING_TABLE")."
 fi
 log_info "Daily refresh completed."
 msg "Refresh completed."

@@ -43,15 +43,17 @@ TABLE_SECONDARY="1001"
 
 [ -f "$CONFIG" ] && . "$CONFIG"
 
-RULE_IIF="${RULE_IIF-br0}"
+RULE_IIF_LIST="${RULE_IIF_LIST-br0}"
 TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
 TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
 
-rule_delete() {
-  if [ -n "$RULE_IIF" ]; then
-    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+rules_delete() {
+  if [ -n "$RULE_IIF_LIST" ]; then
+    for iface in $RULE_IIF_LIST; do
+      ip rule del iif "$iface" table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
+    done
   else
-    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
   fi
 }
 
@@ -78,10 +80,9 @@ for _table in "$TABLE_PRIMARY" "$TABLE_SECONDARY"; do
 done
 
 for _table in "$TABLE_PRIMARY" "$TABLE_SECONDARY"; do
-  if rule_delete "$_table"; then
-    msg "Routing rule for table #${_table} removed."
-    log_info "Routing rule for table #${_table} removed."
-  fi
+  rules_delete "$_table"
+  msg "Routing rules for table #${_table} removed."
+  log_info "Routing rules for table #${_table} removed."
 done
 
 delete_file "/opt/etc/cron.daily/routing_table_update" "Symlink" "symlink"

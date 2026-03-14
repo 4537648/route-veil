@@ -7,8 +7,8 @@ FILE="/opt/etc/route-veil/route-list.txt"
 # Directory with source lists for builder.sh
 SOURCE_DIR="/opt/etc/route-veil/sources"
 
-# Incoming interface for policy routing. Leave empty to apply to all traffic.
-RULE_IIF="br0"
+# Space-separated incoming interfaces for policy routing. Leave empty to apply to all traffic.
+RULE_IIF_LIST="br0"
 
 # Active/staging routing tables
 TABLE_PRIMARY="1000"

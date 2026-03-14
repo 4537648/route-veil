@@ -11,7 +11,7 @@ PIDFILE_DEFAULT="/tmp/apply-routes.sh.pid"
 TABLE_PRIMARY="${TABLE_PRIMARY:-1000}"
 TABLE_SECONDARY="${TABLE_SECONDARY:-1001}"
 ACTIVE_TABLE_FILE="${ACTIVE_TABLE_FILE:-/opt/etc/route-veil/active-table}"
-RULE_IIF="${RULE_IIF-br0}"
+RULE_IIF_LIST="${RULE_IIF_LIST-br0}"
 
 log_info() {
   logger -t "route-veil/hook" "$1"
@@ -30,26 +30,38 @@ active_table_read() {
 }
 
 rule_desc() {
-  if [ -n "$RULE_IIF" ]; then
-    printf "%s\n" "${RULE_IIF} -> table $1"
+  if [ -n "$RULE_IIF_LIST" ]; then
+    printf "%s\n" "$(printf "%s" "$RULE_IIF_LIST" | tr ' ' ',') -> table $1"
   else
     printf "%s\n" "all traffic -> table $1"
   fi
 }
 
-rule_add() {
-  if [ -n "$RULE_IIF" ]; then
-    ip rule add iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+rules_add() {
+  failed=0
+  if [ -n "$RULE_IIF_LIST" ]; then
+    for iface in $RULE_IIF_LIST; do
+      if ! ip rule add iif "$iface" table "$1" priority "$RULE_PRIORITY" 2>/dev/null; then
+        log_error "Failed to enable policy rule for interface \"${iface}\" in table ${1}."
+        failed=1
+      fi
+    done
   else
-    ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+    if ! ip rule add table "$1" priority "$RULE_PRIORITY" 2>/dev/null; then
+      log_error "Failed to enable policy rule for table ${1}."
+      failed=1
+    fi
   fi
+  return "$failed"
 }
 
-rule_delete() {
-  if [ -n "$RULE_IIF" ]; then
-    ip rule del iif "$RULE_IIF" table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+rules_delete() {
+  if [ -n "$RULE_IIF_LIST" ]; then
+    for iface in $RULE_IIF_LIST; do
+      ip rule del iif "$iface" table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
+    done
   else
-    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null
+    ip rule del table "$1" priority "$RULE_PRIORITY" 2>/dev/null || true
   fi
 }
 
@@ -72,8 +84,8 @@ kill_apply_routes() {
 case ${connected}-${link}-${up} in
   yes-up-up)
     ACTIVE_TABLE="$(active_table_read)"
-    if rule_add "$ACTIVE_TABLE"; then
-        log_info "Tunnel interface \"${IFACE}\" is up. Policy rule enabled for $(rule_desc "$ACTIVE_TABLE")."
+    if rules_add "$ACTIVE_TABLE"; then
+      log_info "Tunnel interface \"${IFACE}\" is up. Policy rules enabled for $(rule_desc "$ACTIVE_TABLE")."
       if [ -z "$(ip route list table "$ACTIVE_TABLE" 2>/dev/null)" ]; then
         ROUTE_TABLE="$ACTIVE_TABLE" "$APPLY_ROUTES" &
         log_info "Active table ${ACTIVE_TABLE} is empty. apply-routes.sh started."
@@ -81,14 +93,14 @@ case ${connected}-${link}-${up} in
         log_info "Active table ${ACTIVE_TABLE} already populated. apply-routes.sh skipped."
       fi
     else
-      log_error "Failed to enable policy rule for $(rule_desc "$ACTIVE_TABLE")."
+      log_error "Failed to enable policy rules for $(rule_desc "$ACTIVE_TABLE")."
     fi
   ;;
   no-down-*)
     ACTIVE_TABLE="$(active_table_read)"
     kill_apply_routes
-    rule_delete "$ACTIVE_TABLE"
-    log_info "Tunnel interface \"${IFACE}\" is down. Policy rule disabled for $(rule_desc "$ACTIVE_TABLE")."
+    rules_delete "$ACTIVE_TABLE"
+    log_info "Tunnel interface \"${IFACE}\" is down. Policy rules disabled for $(rule_desc "$ACTIVE_TABLE")."
   ;;
 esac
 
